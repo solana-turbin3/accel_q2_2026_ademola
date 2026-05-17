@@ -1,0 +1,19 @@
+[toolchain]
+package_manager = "yarn"
+anchor_version = "1.0.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+trasnfer_hook_vault = "13HzQvReEjdNXroQvg2iHEkpcBGL3vSJA1sX5mrz6GBz"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test"
+
+[hooks]

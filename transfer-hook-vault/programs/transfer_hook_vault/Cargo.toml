@@ -1,12 +1,12 @@
 [package]
-name = "trasnfer_hook_vault"
+name = "transfer_hook_vault"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "trasnfer_hook_vault"
+name = "transfer_hook_vault"
 
 [features]
 default = []
@@ -24,9 +24,7 @@ custom-panic = []
 anchor-lang = {version = "1.0.2", features = ["init-if-needed"]}
 anchor-spl = "1.0.2"
 spl-discriminator = "0.5.1"
-# Library defining a generic state interface to encode additional required accounts for an instruction, using Type-Length-Value structures
 spl-tlv-account-resolution = "0.11.1"
-# Library with helper to resolve additional accounts
 spl-transfer-hook-interface = "2.1.0"
 
 
@@ -37,6 +35,9 @@ solana-transaction = "3.0.2"
 solana-signer = "3.0.0"
 solana-keypair = "3.0.1"
 solana-sdk = "4.0.1"
+spl-token-2022-interface = "2"
+spl-token-2022 = { version = "6", features = ["no-entrypoint"] }
+spl-associated-token-account-interface = "2"
 
 
 [lints.rust]

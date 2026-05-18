@@ -31,6 +31,7 @@ pub struct InitializeVault<'info> {
         mint::token_program = token_program,
         extensions::transfer_hook::authority = config,
         extensions::transfer_hook::program_id = crate::ID,
+        extensions::permanent_delegate::delegate = config,
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
@@ -63,13 +64,17 @@ pub struct InitializeVault<'info> {
 impl<'info> InitializeVault<'info> {
     pub fn extra_account_metas() -> Vec<ExtraAccountMeta> {
         vec![
-            // whitelist_entry PDA for the transfer source (owner)
+            // Extra meta 0: this program itself (hook_program).
+            // LiteSVM needs the callee's AccountInfo in cpi_account_infos to execute
+            // the hook CPI; registering it here causes invoke_execute to include it.
+            ExtraAccountMeta::new_with_pubkey(&crate::ID, false, false).unwrap(),
+            // Extra meta 1: whitelist_entry PDA for the transfer source owner (index 3)
             ExtraAccountMeta::new_with_seeds(
                 &[
                     Seed::Literal {
                         bytes: b"whitelist_entry".to_vec(),
                     },
-                    Seed::AccountKey { index: 3 }, // source owner index in transfer accounts
+                    Seed::AccountKey { index: 3 },
                 ],
                 false,
                 false,
@@ -86,12 +91,6 @@ impl<'info> InitializeVault<'info> {
             bump: bumps.config,
             suspended: false,
         });
-
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            b"vault_config",
-            self.admin.to_account_info().key.as_ref(),
-            &[bumps.config],
-        ]];
 
         let metas = Self::extra_account_metas();
         ExtraAccountMetaList::init::<ExecuteInstruction>(

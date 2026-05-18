@@ -1,13 +1,13 @@
 [toolchain]
-package_manager = "yarn"
 anchor_version = "1.0.2"
+package_manager = "yarn"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-trasnfer_hook_vault = "13HzQvReEjdNXroQvg2iHEkpcBGL3vSJA1sX5mrz6GBz"
+transfer_hook_vault = "w7jecRTVoH3FkVSDxuNHJN1PTFi83GieT138r1V3es7"
 
 [provider]
 cluster = "localnet"

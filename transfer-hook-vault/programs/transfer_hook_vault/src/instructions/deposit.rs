@@ -1,10 +1,11 @@
-use crate::state::{Config, EntryStatus, WhitelistEntry};
+use crate::state::{Config, WhitelistEntry};
+use crate::error::VaultError;
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
-};
 
+// No token transfer here. The caller is responsible for executing the
+// Token-2022 transfer_checked (user → vault) BEFORE calling this instruction.
+// That external transfer fires the hook which enforces the whitelist.
+// This instruction only validates and records the accounting update.
 #[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]
@@ -14,45 +15,18 @@ pub struct Deposit<'info> {
         bump = config.bump
     )]
     pub config: Account<'info, Config>,
-    pub mint: InterfaceAccount<'info, Mint>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = user,
-        associated_token::token_program = token_program,
-    )]
-    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = config,
-        associated_token::token_program = token_program,
-    )]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
         mut,
         seeds = [b"whitelist_entry", user.key().as_ref()],
         bump = whitelist_entry.bump,
     )]
     pub whitelist_entry: Account<'info, WhitelistEntry>,
-    /// CHECK: ExtraAccountMetaList
-    #[account(
-        seeds = [b"extra-account-metas", mint.key().as_ref()],
-        bump
-    )]
-    pub extra_account_meta_list: UncheckedAccount<'info>,
-    pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> Deposit<'info> {
     pub fn deposit(&mut self, amount: u64) -> Result<()> {
-
-        require!(
-            self.config.suspended == false,
-            VaultError::WithdrawsSuspended
-        );
+        require!(!self.config.suspended, VaultError::WithdrawsSuspended);
 
         if self.whitelist_entry.deposit_cap > 0 {
             require!(
@@ -64,24 +38,6 @@ impl<'info> Deposit<'info> {
                 VaultError::DepositCapExceeded
             );
         }
-
-        transfer_checked(
-            CpiContext::new(
-                self.token_program.key(),
-                TransferChecked {
-                    from: self.user_token_account.to_account_info(),
-                    mint: self.mint.to_account_info(),
-                    to: self.vault.to_account_info(),
-                    authority: self.user.to_account_info(),
-                },
-            )
-            .with_remaining_accounts(vec![
-                self.extra_account_meta_list.to_account_info(),
-                self.whitelist_entry.to_account_info(),
-            ]),
-            amount,
-            self.mint.decimals,
-        )?;
 
         self.whitelist_entry.balance_amount = self
             .whitelist_entry

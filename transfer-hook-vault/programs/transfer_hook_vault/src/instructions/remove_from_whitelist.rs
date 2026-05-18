@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use crate::state::{Config, WhitelistEntry};
+use crate::error::VaultError;
 
 #[derive(Accounts)]
 pub struct RemoveFromWhitelist<'info> {
@@ -25,6 +27,10 @@ pub struct RemoveFromWhitelist<'info> {
 
 impl<'info> RemoveFromWhitelist<'info> {
     pub fn remove(&mut self) -> Result<()> {
+        require!(
+            self.whitelist_entry.balance_amount == 0,
+            VaultError::UserHasBalance
+        );
         Ok(())
     }
 }

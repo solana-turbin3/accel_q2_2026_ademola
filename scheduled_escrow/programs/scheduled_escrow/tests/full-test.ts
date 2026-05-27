@@ -1,7 +1,10 @@
 import * as anchor from "@coral-xyz/anchor";
 import { BN, Program } from "@coral-xyz/anchor";
 import {
+  createTaskQueue,
+  getTaskQueueForName,
   init,
+  nextAvailableTaskIds,
   runTask,
   taskKey,
   taskQueueAuthorityKey,
@@ -89,10 +92,14 @@ describe("scheduled-escrow", () => {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async function waitForExpiry(expiry: number, bufferMs = 5_000) {
-    const waitMs = Math.max(0, expiry * 1000 - Date.now() + bufferMs);
-    if (waitMs > 0) {
-      await sleep(waitMs);
+  async function waitForExpiry(expiry: number, bufferSeconds = 5) {
+    for (;;) {
+      const slot = await connection.getSlot("confirmed");
+      const chainTime = await connection.getBlockTime(slot);
+      if (chainTime !== null && chainTime >= expiry + bufferSeconds) {
+        return;
+      }
+      await sleep(1_000);
     }
   }
 
@@ -260,12 +267,42 @@ describe("scheduled-escrow", () => {
   // --- schedule --------------------------------------------------------------
 
   describe("schedule-refund", () => {
-    const taskQueue = new PublicKey(
-      "JCLv1EJLzgK6MQXhYEVpKSUu2APS5qiPMNCEgrcmqVNS", //original task queue ID of my tuktuk scheduler
-    );
-    const taskID = (Date.now() % 60_000) + 1;
+    let taskQueue: PublicKey;
 
     before(async () => {
+      const tuktukProgram = await init(provider);
+      const queueName = `se-${Date.now().toString(36)}`;
+      await (
+        await createTaskQueue(tuktukProgram, {
+          minCrankReward: new BN(1_000_000),
+          name: queueName,
+          capacity: 5,
+          lookupTables: [],
+          staleTaskAge: 60,
+        })
+      ).rpc();
+
+      const createdTaskQueue = await getTaskQueueForName(
+        tuktukProgram,
+        queueName,
+      );
+      if (!createdTaskQueue) {
+        throw new Error("failed to create isolated tuktuk task queue");
+      }
+      taskQueue = createdTaskQueue;
+      await tuktukProgram.methods
+        .addQueueAuthorityV0()
+        .accounts({
+          payer: provider.wallet.publicKey,
+          updateAuthority: provider.wallet.publicKey,
+          queueAuthority,
+          taskQueueAuthority: taskQueueAuthorityKey(
+            taskQueue,
+            queueAuthority,
+          )[0],
+          taskQueue,
+        })
+        .rpc();
       await program.methods
         .make(scheduleSeed, depositAmount, expiryDuration, receiveAmount)
         .accountsPartial({
@@ -281,6 +318,10 @@ describe("scheduled-escrow", () => {
 
     it("queues and executes a timed refund task on the tuktuk task queue", async () => {
       const tuktukProgram = await init(provider);
+      const taskQueueAccount = await tuktukProgram.account.taskQueueV0.fetch(
+        taskQueue,
+      );
+      const taskID = nextAvailableTaskIds(taskQueueAccount.taskBitmap, 1)[0];
       const escrow = escrowPda(scheduleSeed, maker.publicKey);
       const vault = await getAssociatedTokenAddress(mintA, escrow, true);
       const taskQueueAuthority = taskQueueAuthorityKey(
@@ -317,16 +358,26 @@ describe("scheduled-escrow", () => {
       const escrowAccount = await program.account.escrow.fetch(escrow);
       await waitForExpiry(Number(escrowAccount.expiry));
 
-      const crankInstructions = await runTask({
-        program: tuktukProgram,
-        task,
-        crankTurner: payer.publicKey,
-      });
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        if ((await connection.getAccountInfo(escrow)) === null) {
+          break;
+        }
 
-      await provider.sendAndConfirm(
-        new Transaction().add(...crankInstructions),
-        [],
-      );
+        if ((await connection.getAccountInfo(task)) !== null) {
+          const crankInstructions = await runTask({
+            program: tuktukProgram,
+            task,
+            crankTurner: payer.publicKey,
+          });
+
+          await provider.sendAndConfirm(
+            new Transaction().add(...crankInstructions),
+            [],
+          );
+        }
+
+        await sleep(1_000);
+      }
 
       const balanceAfterRefund = await connection.getTokenAccountBalance(
         makerAtaA,

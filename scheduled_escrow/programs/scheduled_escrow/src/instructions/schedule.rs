@@ -66,13 +66,6 @@ pub struct Schedule<'info> {
 impl<'info> Schedule<'info> {
 
     pub fn schedule(&mut self, task_id: u16, bumps: ScheduleBumps) -> Result<()> {
-        let seed_bytes = self.escrow.seed.to_le_bytes();
-        let escrow_signer_seeds: Vec<Vec<u8>> = vec![
-            ESCROW_SEED.to_vec(),
-            self.maker.key.as_ref().to_vec(),
-            seed_bytes.to_vec(),
-            vec![self.escrow.bump],
-        ];
         let (compiled_transaction, _) = compile_transaction(
             vec![Instruction {
                 program_id: crate::ID,
@@ -88,7 +81,7 @@ impl<'info> Schedule<'info> {
                 .to_account_metas(None),
                 data: crate::instruction::ScheduledRefund.data(),
             }],
-            vec![escrow_signer_seeds],
+            vec![],
         )?;
 
     queue_task_v0(

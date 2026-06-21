@@ -13,7 +13,7 @@ Some assignments are completions of instructor-provided starter code rather than
 
 - **Tuktuk scheduler** (from scratch, built on my Week 1 escrow) — [my repo](https://github.com/AdemolaSam/scheduled-escrow)
 - **MagicBlock VRF** (completed instructor scaffold, starter: [ShrinathNR/magicblock-er-example](https://github.com/ShrinathNR/magicblock-er-example)) — [my repo](https://github.com/AdemolaSam/magicblock-vrf)
-- **Solana GPT Oracle (ROCKO)** — in progress, not yet working. Revisiting after this submission set.
+- **Solana GPT Oracle** — in progress, not yet working. Revisiting after this submission set.
 
 ## Week 3 (Assignment 7)
 
